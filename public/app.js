@@ -178,7 +178,7 @@ function showStatus(msg, isError = false) {
 
 async function load(symbol, quiet404 = false) {
   showStatus(`Loading ${symbol}...`);
-  const data = await fetchJSON(`/api/stock/${encodeURIComponent(symbol)}`);
+  const data = await fetchJSON(`/api/stock?symbol=${encodeURIComponent(symbol)}`);
   if (data.error) {
     if (quiet404 && data.status === 404) return false;
     showStatus(data.error, true);
@@ -249,8 +249,9 @@ function render(d) {
     $("cards").appendChild(card);
   }
 
-  $("history-note").hidden = !d.historyNote;
-  $("history-note").textContent = d.historyNote || "";
+  const note = [d.summaryNote, d.historyNote].filter(Boolean).join(" ");
+  $("history-note").hidden = !note;
+  $("history-note").textContent = note;
   renderChart(d);
   renderEventList(d);
 }
