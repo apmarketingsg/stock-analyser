@@ -1,0 +1,15 @@
+{
+  "name": "stock-analyser",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "yahoo-finance2": "^4.0.5"
+  }
+}

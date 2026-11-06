@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stock Analyser</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="vendor/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Stock Analyser</div>
+    <form id="search-form" class="search" autocomplete="off">
+      <input id="q" type="text" placeholder="Stock code or name, e.g. D05.SI, DBS, AAPL, Apple" aria-label="Stock code or name">
+      <button type="submit">Analyse</button>
+      <ul id="suggest" class="suggest" hidden></ul>
+    </form>
+  </header>
+
+  <main>
+    <section id="empty" class="empty">
+      <p>Type a stock code or company name to start. SGX codes end in <b>.SI</b> (DBS is D05.SI, Singtel is Z74.SI).</p>
+    </section>
+
+    <section id="status" class="status" hidden></section>
+
+    <section id="result" hidden>
+      <div class="title-row">
+        <div>
+          <h1 id="name"></h1>
+          <div id="sub" class="sub"></div>
+        </div>
+        <div class="price-block">
+          <div id="price" class="price"></div>
+          <div id="change" class="change"></div>
+        </div>
+      </div>
+
+      <div class="summary">
+        <div class="tags" id="tags"></div>
+        <div class="summary-grid">
+          <div>
+            <h2>What it does</h2>
+            <p id="summary" class="clamp"></p>
+            <button id="more" class="link" type="button">Read more</button>
+          </div>
+          <div>
+            <h2>How it makes money</h2>
+            <ul id="money"></ul>
+            <p class="note">Taken from the company description on Yahoo Finance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="cards" class="cards"></div>
+
+      <div class="chart-wrap">
+        <div class="chart-head">
+          <h2>Price, last 18 months</h2>
+          <div class="legend">
+            <span><i class="dot rise"></i>Significant rise</span>
+            <span><i class="dot dip"></i>Significant dip</span>
+          </div>
+        </div>
+        <p id="history-note" class="note" hidden></p>
+        <div class="chart-box">
+          <canvas id="chart"></canvas>
+          <div id="event-card" class="event-card" hidden></div>
+        </div>
+        <p class="note">Hover over a dot to see the news from those dates. Headlines are matched by date, so treat them as likely causes, not proven ones.</p>
+        <div id="event-list" class="event-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
