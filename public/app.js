@@ -177,6 +177,7 @@ function showStatus(msg, isError = false) {
 // ---------------------------------------------------------------- load + render
 
 async function load(symbol, quiet404 = false) {
+  showTab("analyse");
   showStatus(`Loading ${symbol}...`);
   const data = await fetchJSON(`/api/stock?symbol=${encodeURIComponent(symbol)}`);
   if (data.error) {
@@ -446,6 +447,30 @@ async function showEventCard(ev, x, y) {
 
 window.addEventListener("resize", () => hideEventCard(true));
 
-// Load from ?s=SYMBOL so a page can be bookmarked or shared
-const initial = new URLSearchParams(location.search).get("s");
-if (initial) { $("q").value = initial; load(initial); }
+// ---------------------------------------------------------------- tabs
+
+function showTab(name) {
+  for (const b of document.querySelectorAll(".tab")) b.classList.toggle("active", b.dataset.tab === name);
+  $("view-analyse").hidden = name !== "analyse";
+  $("view-portfolio").hidden = name !== "portfolio";
+  if (name === "portfolio") {
+    history.replaceState(null, "", "?tab=portfolio");
+    document.title = "Portfolio | Stock Analyser";
+    window.dispatchEvent(new Event("portfolio:show"));
+  } else if (state.data) {
+    history.replaceState(null, "", `?s=${encodeURIComponent(state.data.symbol)}`);
+    document.title = `${state.data.symbol} | Stock Analyser`;
+  }
+  // The chart can't size itself while hidden, so redraw it when it comes back.
+  if (name === "analyse" && state.chart) state.chart.resize();
+}
+for (const b of document.querySelectorAll(".tab")) b.addEventListener("click", () => showTab(b.dataset.tab));
+
+// Used by the portfolio tab to open a holding in the analyser.
+window.stockApp = { analyse: (sym) => { $("q").value = sym; load(sym); } };
+
+// Load from ?s=SYMBOL or ?tab=portfolio so a page can be bookmarked or shared
+const params = new URLSearchParams(location.search);
+const initial = params.get("s");
+if (params.get("tab") === "portfolio" || location.hash.includes("type=recovery")) showTab("portfolio");
+else if (initial) { $("q").value = initial; load(initial); }
