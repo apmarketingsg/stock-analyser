@@ -9,9 +9,10 @@ import stock from "./api/stock.js";
 import news from "./api/news.js";
 import quotesRoute from "./api/quotes.js";
 import config from "./api/config.js";
+import security from "./api/security.js";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "public");
-const routes = { "/api/search": search, "/api/stock": stock, "/api/news": news, "/api/quotes": quotesRoute, "/api/config": config };
+const routes = { "/api/search": search, "/api/stock": stock, "/api/news": news, "/api/quotes": quotesRoute, "/api/config": config, "/api/security": security };
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".md": "text/plain" };
 const port = Number(process.env.PORT) || 3000;
 
@@ -20,6 +21,11 @@ http.createServer(async (req, res) => {
   const route = routes[url.pathname];
   if (route) {
     req.query = Object.fromEntries(url.searchParams);
+    if (req.method === "POST") {
+      let raw = "";
+      for await (const chunk of req) raw += chunk;
+      try { req.body = JSON.parse(raw || "{}"); } catch { req.body = {}; }
+    }
     res.status = (code) => { res.statusCode = code; return res; };
     res.json = (body) => { res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(body)); };
     return route(req, res);

@@ -28,6 +28,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
   margin: 0;
   background: var(--bg);
@@ -202,3 +203,4 @@ table.grid tr.clickable:hover td { background: var(--bg); }
   .search { order: 3; flex-basis: 100%; max-width: none; }
 }
 #pf-tx td { white-space: nowrap; }
+.question { font-weight: 600; font-size: 16px; margin: 0; }

@@ -39,3 +39,25 @@ drop trigger if exists portfolios_touch_updated_at on public.portfolios;
 create trigger portfolios_touch_updated_at
   before update on public.portfolios
   for each row execute function public.portfolios_touch_updated_at();
+
+-- Secret question for password reset. Answers are stored only as salted
+-- scrypt hashes. Row-level security is on with NO policies, so browsers
+-- (signed in or not) cannot read or write this table at all; only the
+-- server, using the secret key in api/security.js, can.
+create table if not exists public.security_questions (
+  user_id         uuid primary key references auth.users (id) on delete cascade,
+  email           text not null unique,
+  question        text not null check (char_length(question) between 5 and 200),
+  answer_hash     text not null,
+  failed_attempts integer not null default 0,
+  locked_until    timestamptz,
+  updated_at      timestamptz not null default now()
+);
+
+alter table public.security_questions enable row level security;
+revoke all on public.security_questions from anon, authenticated;
+
+drop trigger if exists security_questions_touch_updated_at on public.security_questions;
+create trigger security_questions_touch_updated_at
+  before update on public.security_questions
+  for each row execute function public.portfolios_touch_updated_at();

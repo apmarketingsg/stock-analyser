@@ -12,13 +12,13 @@ const pf = {
   quotes: {},        // symbol -> { price, prevClose, currency, name }
   fx: { [BASE]: 1 },
   started: false,
-  recovering: false,
+  questionDone: false,
   saving: Promise.resolve(),
 };
 
 // ---------------------------------------------------------------- views
 
-const VIEWS = ["pf-unconfigured", "pf-loading", "pf-auth", "pf-reset", "pf-main"];
+const VIEWS = ["pf-unconfigured", "pf-loading", "pf-auth", "pf-forgot", "pf-question", "pf-main"];
 function view(id) { for (const v of VIEWS) $(v).hidden = v !== id; }
 
 function msg(el, text, kind = "") {
@@ -46,7 +46,6 @@ async function start() {
   });
 
   pf.client.auth.onAuthStateChange((event, session) => {
-    if (event === "PASSWORD_RECOVERY") { pf.recovering = true; return view("pf-reset"); }
     // Defer: Supabase advises against awaiting other calls inside this callback.
     setTimeout(() => onSession(session), 0);
   });
@@ -55,12 +54,20 @@ async function start() {
 }
 
 async function onSession(session) {
-  if (pf.recovering) return;
   const user = session?.user || null;
-  if (!user) { pf.user = null; pf.doc = null; return view("pf-auth"); }
+  if (!user) { pf.user = null; pf.doc = null; pf.questionDone = false; return view("pf-auth"); }
   if (pf.user?.id === user.id && pf.doc) return; // already loaded
   pf.user = user;
   view("pf-loading");
+
+  // Everyone needs a secret question, so they can reset a forgotten password.
+  if (!pf.questionDone) {
+    const st = await security("status");
+    if (st.error && st.status !== 503) { msg("auth-msg", st.error, "error"); pf.user = null; return view("pf-auth"); }
+    if (st.error) pf.questionDone = true; // reset not configured on the server: don't block the portfolio
+    else if (!st.hasQuestion) return showQuestionForm(st.presets, null, false);
+    else pf.questionDone = true;
+  }
   await loadDoc();
   $("pf-user").textContent = user.email;
   view("pf-main");
@@ -95,26 +102,117 @@ $("auth-form").addEventListener("submit", async (e) => {
   msg("auth-msg", "");
 });
 
-$("forgot").addEventListener("click", async () => {
-  const email = $("auth-email").value.trim();
-  if (!email) return msg("auth-msg", "Type your email above first, then click Forgot password.", "error");
-  const { error } = await pf.client.auth.resetPasswordForEmail(email, { redirectTo: location.origin + "/?tab=portfolio" });
-  msg("auth-msg", error ? error.message : "If that email has an account, a reset link is on its way.", error ? "error" : "ok");
+// ---------------------------------------------------------------- secret question
+
+async function security(action, body = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (pf.client) {
+    const { data } = await pf.client.auth.getSession();
+    if (data.session) headers.Authorization = `Bearer ${data.session.access_token}`;
+  }
+  try {
+    const r = await fetch("/api/security", { method: "POST", headers, body: JSON.stringify({ action, ...body }) });
+    const out = await r.json();
+    return r.ok ? out : { error: out.error || r.statusText, status: r.status };
+  } catch (e) {
+    return { error: String(e), status: 0 };
+  }
+}
+
+const CUSTOM = "__custom__";
+let questionMandatory = false;
+
+function showQuestionForm(presets, current, canCancel) {
+  questionMandatory = !canCancel;
+  const sel = $("question-pick");
+  sel.innerHTML = "";
+  const list = [...(presets || [])];
+  if (current && !list.includes(current)) list.push(current);
+  for (const q of list) sel.add(new Option(q, q, false, q === current));
+  sel.add(new Option("Write my own question...", CUSTOM));
+  $("question-custom-wrap").hidden = true;
+  $("question-custom").value = "";
+  $("question-answer").value = "";
+  $("question-title").textContent = current ? "Change your secret question" : "Set your secret question";
+  $("question-cancel").hidden = !canCancel;
+  msg("question-msg", "");
+  view("pf-question");
+}
+
+$("question-pick").addEventListener("change", () => {
+  $("question-custom-wrap").hidden = $("question-pick").value !== CUSTOM;
 });
 
-$("reset-form").addEventListener("submit", async (e) => {
+$("question-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const { error } = await pf.client.auth.updateUser({ password: $("reset-password").value });
-  if (error) return msg("reset-msg", error.message, "error");
-  pf.recovering = false;
-  const { data } = await pf.client.auth.getSession();
-  onSession(data.session);
+  const question = $("question-pick").value === CUSTOM ? $("question-custom").value.trim() : $("question-pick").value;
+  msg("question-msg", "Saving...");
+  const out = await security("set", { question, answer: $("question-answer").value });
+  if (out.error) return msg("question-msg", out.error, "error");
+  msg("question-msg", "");
+  pf.questionDone = true;
+  if (questionMandatory) {
+    // First-time set-up: carry on into the portfolio.
+    const user = pf.user; pf.user = null;
+    const { data } = await pf.client.auth.getSession();
+    return onSession(data.session || (user ? { user } : null));
+  }
+  view("pf-main");
+  setSaved("Secret question updated");
+});
+
+$("question-cancel").addEventListener("click", () => view("pf-main"));
+
+$("pf-change-question").addEventListener("click", async () => {
+  const st = await security("status");
+  if (st.error) return alert(st.error);
+  showQuestionForm(st.presets, st.question, true);
+});
+
+// Forgot password: email -> question -> answer + new password.
+let forgotEmail = "";
+
+$("forgot").addEventListener("click", () => {
+  $("forgot-email").value = $("auth-email").value.trim();
+  $("forgot-email-form").hidden = false;
+  $("forgot-answer-form").hidden = true;
+  msg("forgot-msg", "");
+  view("pf-forgot");
+});
+
+$("forgot-back").addEventListener("click", () => { msg("auth-msg", ""); view("pf-auth"); });
+
+$("forgot-email-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  forgotEmail = $("forgot-email").value.trim();
+  msg("forgot-msg", "Looking up your question...");
+  const out = await security("question", { email: forgotEmail });
+  if (out.error) return msg("forgot-msg", out.error, "error");
+  msg("forgot-msg", "");
+  $("forgot-for").textContent = `Account: ${forgotEmail}`;
+  $("forgot-question").textContent = out.question;
+  $("forgot-answer").value = ""; $("forgot-new").value = ""; $("forgot-new2").value = "";
+  $("forgot-email-form").hidden = true;
+  $("forgot-answer-form").hidden = false;
+  $("forgot-answer").focus();
+});
+
+$("forgot-answer-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if ($("forgot-new").value !== $("forgot-new2").value) return msg("forgot-msg", "The two passwords don't match.", "error");
+  msg("forgot-msg", "Checking...");
+  const out = await security("reset", { email: forgotEmail, answer: $("forgot-answer").value, newPassword: $("forgot-new").value });
+  if (out.error) return msg("forgot-msg", out.error, "error");
+  $("auth-email").value = forgotEmail;
+  $("auth-password").value = "";
+  view("pf-auth");
+  msg("auth-msg", "Password changed. Sign in with your new password.", "ok");
 });
 
 $("pf-signout").addEventListener("click", async () => {
   await pf.saving;
   await pf.client.auth.signOut();
-  pf.user = null; pf.doc = null; pf.quotes = {};
+  pf.user = null; pf.doc = null; pf.quotes = {}; pf.questionDone = false;
   view("pf-auth");
 });
 

@@ -104,12 +104,39 @@
       </form>
     </section>
 
-    <section id="pf-reset" class="pf-panel narrow" hidden>
-      <h1>Set a new password</h1>
-      <form id="reset-form" class="stack">
-        <label>New password <input id="reset-password" type="password" autocomplete="new-password" minlength="8" required></label>
-        <button type="submit" class="primary">Save password</button>
-        <p id="reset-msg" class="msg" hidden></p>
+    <section id="pf-forgot" class="pf-panel narrow" hidden>
+      <h1>Reset your password</h1>
+      <form id="forgot-email-form" class="stack">
+        <label>Email <input id="forgot-email" type="email" autocomplete="email" required></label>
+        <button type="submit" class="primary">Next</button>
+      </form>
+      <form id="forgot-answer-form" class="stack" hidden>
+        <p class="sub" id="forgot-for"></p>
+        <p class="question" id="forgot-question"></p>
+        <label>Your answer <input id="forgot-answer" type="text" autocomplete="off" required></label>
+        <label>New password <input id="forgot-new" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label>Repeat new password <input id="forgot-new2" type="password" autocomplete="new-password" minlength="8" required></label>
+        <button type="submit" class="primary">Set new password</button>
+      </form>
+      <p id="forgot-msg" class="msg" hidden></p>
+      <button type="button" id="forgot-back" class="link">Back to sign in</button>
+    </section>
+
+    <section id="pf-question" class="pf-panel narrow" hidden>
+      <h1 id="question-title">Set your secret question</h1>
+      <p class="sub">If you forget your password, you'll answer this to set a new one. Pick an answer only you would know and that isn't on your social media.</p>
+      <form id="question-form" class="stack">
+        <label>Question
+          <select id="question-pick"></select>
+        </label>
+        <label id="question-custom-wrap" hidden>Your own question <input id="question-custom" type="text" maxlength="200"></label>
+        <label>Answer <input id="question-answer" type="text" autocomplete="off" required></label>
+        <p class="note">Capital letters, spaces and punctuation are ignored when checking the answer.</p>
+        <div class="row">
+          <button type="submit" class="primary">Save</button>
+          <button type="button" id="question-cancel" class="secondary" hidden>Cancel</button>
+        </div>
+        <p id="question-msg" class="msg" hidden></p>
       </form>
     </section>
 
@@ -123,6 +150,7 @@
           <button type="button" id="pf-refresh" class="secondary">Refresh prices</button>
           <button type="button" id="pf-export" class="secondary">Export JSON</button>
           <label class="secondary file-btn">Import JSON <input type="file" id="pf-import" accept="application/json,.json" hidden></label>
+          <button type="button" id="pf-change-question" class="secondary">Secret question</button>
           <button type="button" id="pf-signout" class="secondary">Sign out</button>
         </div>
       </div>

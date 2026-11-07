@@ -472,5 +472,5 @@ window.stockApp = { analyse: (sym) => { $("q").value = sym; load(sym); } };
 // Load from ?s=SYMBOL or ?tab=portfolio so a page can be bookmarked or shared
 const params = new URLSearchParams(location.search);
 const initial = params.get("s");
-if (params.get("tab") === "portfolio" || location.hash.includes("type=recovery")) showTab("portfolio");
+if (params.get("tab") === "portfolio") showTab("portfolio");
 else if (initial) { $("q").value = initial; load(initial); }
