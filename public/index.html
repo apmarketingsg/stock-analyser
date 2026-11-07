@@ -8,10 +8,15 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script src="vendor/chart.umd.min.js"></script>
+  <script src="vendor/supabase.js"></script>
 </head>
 <body>
   <header class="topbar">
     <div class="brand">Stock Analyser</div>
+    <nav class="tabs" aria-label="Sections">
+      <button type="button" class="tab active" data-tab="analyse">Analyse</button>
+      <button type="button" class="tab" data-tab="portfolio">Portfolio</button>
+    </nav>
     <form id="search-form" class="search" autocomplete="off">
       <input id="q" type="text" placeholder="Stock code or name, e.g. D05.SI, DBS, AAPL, Apple" aria-label="Stock code or name">
       <button type="submit">Analyse</button>
@@ -20,6 +25,7 @@
   </header>
 
   <main>
+   <div id="view-analyse">
     <section id="empty" class="empty">
       <p>Type a stock code or company name to start. SGX codes end in <b>.SI</b> (DBS is D05.SI, Singtel is Z74.SI).</p>
     </section>
@@ -73,8 +79,117 @@
         <div id="event-list" class="event-list"></div>
       </div>
     </section>
+   </div>
+
+   <div id="view-portfolio" hidden>
+    <section id="pf-unconfigured" class="pf-panel narrow" hidden>
+      <h1>Portfolio</h1>
+      <p>The portfolio needs a Supabase database, and it isn't connected yet. Add <b>SUPABASE_URL</b> and <b>SUPABASE_PUBLISHABLE_KEY</b> in Vercel under Project Settings, Environment Variables, then redeploy.</p>
+    </section>
+
+    <section id="pf-loading" class="status">Loading...</section>
+
+    <section id="pf-auth" class="pf-panel narrow" hidden>
+      <h1>Sign in to your portfolio</h1>
+      <p class="sub">Your holdings are saved to your account, so you see the same portfolio on any device.</p>
+      <form id="auth-form" class="stack">
+        <label>Email <input id="auth-email" type="email" autocomplete="email" required></label>
+        <label>Password <input id="auth-password" type="password" autocomplete="current-password" minlength="8" required></label>
+        <div class="row">
+          <button type="submit" class="primary" data-action="signin">Sign in</button>
+          <button type="submit" class="secondary" data-action="signup">Create account</button>
+        </div>
+        <button type="button" id="forgot" class="link">Forgot password?</button>
+        <p id="auth-msg" class="msg" hidden></p>
+      </form>
+    </section>
+
+    <section id="pf-forgot" class="pf-panel narrow" hidden>
+      <h1>Reset your password</h1>
+      <form id="forgot-email-form" class="stack">
+        <label>Email <input id="forgot-email" type="email" autocomplete="email" required></label>
+        <button type="submit" class="primary">Next</button>
+      </form>
+      <form id="forgot-answer-form" class="stack" hidden>
+        <p class="sub" id="forgot-for"></p>
+        <p class="question" id="forgot-question"></p>
+        <label>Your answer <input id="forgot-answer" type="text" autocomplete="off" required></label>
+        <label>New password <input id="forgot-new" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label>Repeat new password <input id="forgot-new2" type="password" autocomplete="new-password" minlength="8" required></label>
+        <button type="submit" class="primary">Set new password</button>
+      </form>
+      <p id="forgot-msg" class="msg" hidden></p>
+      <button type="button" id="forgot-back" class="link">Back to sign in</button>
+    </section>
+
+    <section id="pf-question" class="pf-panel narrow" hidden>
+      <h1 id="question-title">Set your secret question</h1>
+      <p class="sub">If you forget your password, you'll answer this to set a new one. Pick an answer only you would know and that isn't on your social media.</p>
+      <form id="question-form" class="stack">
+        <label>Question
+          <select id="question-pick"></select>
+        </label>
+        <label id="question-custom-wrap" hidden>Your own question <input id="question-custom" type="text" maxlength="200"></label>
+        <label>Answer <input id="question-answer" type="text" autocomplete="off" required></label>
+        <p class="note">Capital letters, spaces and punctuation are ignored when checking the answer.</p>
+        <div class="row">
+          <button type="submit" class="primary">Save</button>
+          <button type="button" id="question-cancel" class="secondary" hidden>Cancel</button>
+        </div>
+        <p id="question-msg" class="msg" hidden></p>
+      </form>
+    </section>
+
+    <section id="pf-main" hidden>
+      <div class="title-row">
+        <div>
+          <h1>My portfolio</h1>
+          <div class="sub"><span id="pf-user"></span> · <span id="pf-saved"></span></div>
+        </div>
+        <div class="row wrap">
+          <button type="button" id="pf-refresh" class="secondary">Refresh prices</button>
+          <button type="button" id="pf-export" class="secondary">Export JSON</button>
+          <label class="secondary file-btn">Import JSON <input type="file" id="pf-import" accept="application/json,.json" hidden></label>
+          <button type="button" id="pf-change-question" class="secondary">Secret question</button>
+          <button type="button" id="pf-signout" class="secondary">Sign out</button>
+        </div>
+      </div>
+
+      <div id="pf-totals" class="cards pf-cards"></div>
+      <p id="pf-warn" class="note" hidden></p>
+
+      <div class="pf-panel">
+        <h2>Holdings</h2>
+        <div class="table-wrap"><table id="pf-holdings" class="grid"></table></div>
+        <p id="pf-empty" class="note" hidden>No holdings yet. Add your first trade below.</p>
+        <p class="note">Values in S$ use today's exchange rate, including for cost and realised gains. Click a holding to analyse it.</p>
+      </div>
+
+      <div class="pf-panel">
+        <h2>Add a trade</h2>
+        <form id="tx-form" class="tx-form">
+          <label>Type
+            <select id="tx-type"><option value="buy">Buy</option><option value="sell">Sell</option></select>
+          </label>
+          <label>Stock code <input id="tx-symbol" type="text" placeholder="D05.SI" autocomplete="off" required></label>
+          <label>Date <input id="tx-date" type="date" required></label>
+          <label>Quantity <input id="tx-qty" type="number" min="0" step="any" required></label>
+          <label>Price per share <span id="tx-ccy" class="muted"></span><input id="tx-price" type="number" min="0" step="any" required></label>
+          <label>Fees (total) <input id="tx-fees" type="number" min="0" step="any" value="0"></label>
+          <button type="submit" class="primary">Add trade</button>
+        </form>
+        <p id="tx-msg" class="msg" hidden></p>
+      </div>
+
+      <div class="pf-panel">
+        <h2>Trade history</h2>
+        <div class="table-wrap"><table id="pf-tx" class="grid"></table></div>
+      </div>
+    </section>
+   </div>
   </main>
 
   <script src="app.js"></script>
+  <script type="module" src="portfolio.js"></script>
 </body>
 </html>
