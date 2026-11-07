@@ -55,7 +55,12 @@ async function start() {
 
 async function onSession(session) {
   const user = session?.user || null;
-  if (!user) { pf.user = null; pf.doc = null; pf.questionDone = false; return view("pf-auth"); }
+  if (!user) {
+    pf.user = null; pf.doc = null; pf.questionDone = false;
+    view("pf-auth");
+    if (window.pendingPrefill) msg("auth-msg", `Sign in to add ${window.pendingPrefill.symbol} to your portfolio.`);
+    return;
+  }
   if (pf.user?.id === user.id && pf.doc) return; // already loaded
   pf.user = user;
   view("pf-loading");
@@ -72,7 +77,34 @@ async function onSession(session) {
   $("pf-user").textContent = user.email;
   view("pf-main");
   render();
+  applyPrefill();
   refreshPrices();
+}
+
+// ---------------------------------------------------------------- add from analyser
+
+// The analyser's "Add to portfolio" button leaves the stock in window.pendingPrefill.
+// Fill the trade form now if the portfolio is open, otherwise once the user signs in.
+window.addEventListener("portfolio:prefill", () => {
+  if (!$("pf-main").hidden) return applyPrefill();
+  const p = window.pendingPrefill;
+  if (p && !$("pf-auth").hidden) msg("auth-msg", `Sign in to add ${p.symbol} to your portfolio.`);
+});
+
+function applyPrefill() {
+  const p = window.pendingPrefill;
+  if (!p) return;
+  window.pendingPrefill = null;
+  $("tx-type").value = "buy";
+  $("tx-symbol").value = p.symbol;
+  $("tx-date").value = new Date().toISOString().slice(0, 10);
+  $("tx-price").value = p.price != null ? String(Math.round(p.price * 1e4) / 1e4) : "";
+  $("tx-qty").value = "";
+  $("tx-fees").value = "0";
+  $("tx-ccy").textContent = p.currency ? `(${p.currency})` : "";
+  msg("tx-msg", `${p.symbol} filled in at today's price. Enter the quantity, check the price you paid, then click Add trade.`, "ok");
+  $("tx-form").scrollIntoView({ behavior: "smooth", block: "center" });
+  $("tx-qty").focus({ preventScroll: true });
 }
 
 // ---------------------------------------------------------------- auth

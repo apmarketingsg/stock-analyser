@@ -5,7 +5,7 @@ Type a stock code or company name. The app shows:
 1. **What the company does** and how it makes money (from the Yahoo Finance company description).
 2. **30 metric cards** in three rows of up to 10: basics, then valuation and profitability, then balance sheet and outlook. Hover over a card to see what the metric means.
 3. **An 18-month price chart** with dots on significant rises (green) and dips (red). Hover over a dot to see the news headlines from around that date.
-4. **A Portfolio tab** (sign-in required): record buys and sells, and see value, today's change, unrealised and realised gains in S$, and each holding's weight.
+4. **A Portfolio tab** (sign-in required): record buys and sells, and see value, today's change, unrealised and realised gains in S$, and each holding's weight. The **Add to portfolio** button on any analysed stock opens the trade form with that stock and today's price filled in.
 
 Data comes from free sources: Yahoo Finance (through the `yahoo-finance2` library) and Google News RSS. You don't need any API keys.
 

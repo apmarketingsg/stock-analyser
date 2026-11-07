@@ -466,6 +466,16 @@ function showTab(name) {
 }
 for (const b of document.querySelectorAll(".tab")) b.addEventListener("click", () => showTab(b.dataset.tab));
 
+// "Add to portfolio": hand the stock to the portfolio tab, which fills in its trade form.
+$("add-to-pf").addEventListener("click", () => {
+  const d = state.data;
+  if (!d) return;
+  const price = d.metrics.find((m) => m.label === "Price")?.value ?? null;
+  window.pendingPrefill = { symbol: d.symbol, name: d.name, currency: d.currency, price };
+  showTab("portfolio");
+  window.dispatchEvent(new Event("portfolio:prefill"));
+});
+
 // Used by the portfolio tab to open a holding in the analyser.
 window.stockApp = { analyse: (sym) => { $("q").value = sym; load(sym); } };
 

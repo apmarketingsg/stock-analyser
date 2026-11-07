@@ -73,6 +73,7 @@ h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: v
 .title-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
 .sub { color: var(--muted); margin-top: 4px; }
 .price-block { text-align: right; }
+.add-btn { margin-top: 8px; }
 .price { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .change { font-weight: 600; font-variant-numeric: tabular-nums; }
 .up { color: var(--rise); }
