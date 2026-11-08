@@ -9,13 +9,14 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { makeSecurity, UserError } from "../lib/security.js";
+import { supabaseBaseUrl } from "../lib/supabase-url.js";
 
 let security = null;
 
 function getSecurity() {
   if (security) return security;
-  const url = process.env.SUPABASE_URL;
-  const secret = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = supabaseBaseUrl(process.env.SUPABASE_URL);
+  const secret = (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
   if (!url || !secret) return null;
   const admin = createClient(url, secret, { auth: { persistSession: false, autoRefreshToken: false } });
   const table = () => admin.from("security_questions");
