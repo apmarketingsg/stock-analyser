@@ -1,8 +1,11 @@
-// Portfolio tab: sign-in, loading and saving the user's JSON document in
-// Supabase, live valuation and trade entry. Formatting helpers (money, pct,
-// num, niceDate) come from app.js, which loads first.
+// Portfolio and Watchlist tabs: sign-in, loading and saving the user's JSON
+// document in Supabase, live valuation, trade entry and the watchlist.
+// Formatting helpers (money, pct, num, niceDate) come from app.js, which loads first.
 
-import { BASE, newPortfolio, normalise, computeHoldings, valuePortfolio, validateTx, sortTx } from "./portfolio-calc.js";
+import {
+  BASE, newPortfolio, normalise, computeHoldings, valuePortfolio, validateTx, sortTx,
+  isWatched, addToWatchlist, removeFromWatchlist, valueWatchlist,
+} from "./portfolio-calc.js";
 
 const $ = (id) => document.getElementById(id);
 const pf = {
@@ -18,8 +21,14 @@ const pf = {
 
 // ---------------------------------------------------------------- views
 
-const VIEWS = ["pf-unconfigured", "pf-loading", "pf-auth", "pf-forgot", "pf-question", "pf-password", "pf-main"];
-function view(id) { for (const v of VIEWS) $(v).hidden = v !== id; }
+// Sign-in screens are shared by both tabs; "main" shows each tab's own content.
+const ACCOUNT_VIEWS = ["pf-unconfigured", "pf-loading", "pf-auth", "pf-forgot", "pf-question", "pf-password"];
+function view(id) {
+  for (const v of ACCOUNT_VIEWS) $(v).hidden = v !== id;
+  $("pf-main").hidden = id !== "main";
+  $("wl-main").hidden = id !== "main";
+  $("account-wrap").hidden = !(pf.user && pf.doc);
+}
 
 function msg(el, text, kind = "") {
   $(el).hidden = !text;
@@ -29,8 +38,10 @@ function msg(el, text, kind = "") {
 
 // ---------------------------------------------------------------- start-up
 
-window.addEventListener("portfolio:show", start);
-if (!$("view-portfolio").hidden) start();
+// Start straight away, not only when a tab opens, so the analyser's Watch
+// button knows what is on the watchlist.
+window.addEventListener("account:show", start);
+start();
 
 async function start() {
   if (pf.started) return;
@@ -58,7 +69,8 @@ async function onSession(session) {
   if (!user) {
     pf.user = null; pf.doc = null; pf.questionDone = false;
     view("pf-auth");
-    if (window.pendingPrefill) msg("auth-msg", `Sign in to add ${window.pendingPrefill.symbol} to your portfolio.`);
+    signInHint();
+    notifyWatch();
     return;
   }
   if (pf.user?.id === user.id && pf.doc) return; // already loaded
@@ -75,10 +87,19 @@ async function onSession(session) {
   }
   await loadDoc();
   $("pf-user").textContent = user.email;
-  view("pf-main");
+  $("account-email").textContent = user.email;
+  view("main");
   render();
   applyPrefill();
+  await applyPendingWatch();
+  notifyWatch();
   refreshPrices();
+}
+
+function signInHint() {
+  const p = window.pendingPrefill, w = window.pendingWatch;
+  if (p) msg("auth-msg", `Sign in to add ${p.symbol} to your portfolio.`);
+  else if (w) msg("auth-msg", `Sign in to add ${w.symbol} to your watchlist.`);
 }
 
 // ---------------------------------------------------------------- add from analyser
@@ -87,8 +108,11 @@ async function onSession(session) {
 // Fill the trade form now if the portfolio is open, otherwise once the user signs in.
 window.addEventListener("portfolio:prefill", () => {
   if (!$("pf-main").hidden) return applyPrefill();
-  const p = window.pendingPrefill;
-  if (p && !$("pf-auth").hidden) msg("auth-msg", `Sign in to add ${p.symbol} to your portfolio.`);
+  if (!$("pf-auth").hidden) signInHint();
+});
+window.addEventListener("account:show", () => {
+  if (window.pendingWatch && pf.doc) applyPendingWatch();
+  else if (!$("pf-auth").hidden) signInHint();
 });
 
 function applyPrefill() {
@@ -189,11 +213,11 @@ $("question-form").addEventListener("submit", async (e) => {
     const { data } = await pf.client.auth.getSession();
     return onSession(data.session || (user ? { user } : null));
   }
-  view("pf-main");
+  view("main");
   setSaved("Secret question updated");
 });
 
-$("question-cancel").addEventListener("click", () => view("pf-main"));
+$("question-cancel").addEventListener("click", () => view("main"));
 
 $("pf-change-question").addEventListener("click", async () => {
   const st = await security("status");
@@ -266,7 +290,7 @@ $("pf-change-password").addEventListener("click", () => {
   view("pf-password");
   $("password-current").focus();
 });
-$("password-cancel").addEventListener("click", () => view("pf-main"));
+$("password-cancel").addEventListener("click", () => view("main"));
 
 $("password-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -287,7 +311,7 @@ $("password-form").addEventListener("submit", async (e) => {
 
   // Anyone signed in elsewhere (perhaps with the old password) is signed out.
   const others = await pf.client.auth.signOut({ scope: "others" });
-  view("pf-main");
+  view("main");
   setSaved(others.error
     ? "Password changed. Other devices could not be signed out automatically."
     : "Password changed. Other devices have been signed out.");
@@ -298,6 +322,7 @@ $("pf-signout").addEventListener("click", async () => {
   await pf.client.auth.signOut();
   pf.user = null; pf.doc = null; pf.quotes = {}; pf.questionDone = false;
   view("pf-auth");
+  notifyWatch();
 });
 
 // ---------------------------------------------------------------- load / save
@@ -324,17 +349,21 @@ function save() {
 }
 
 function setSaved(text, isError = false) {
+  pf.savedText = text;
+  pf.savedError = isError;
   $("pf-saved").textContent = text;
   $("pf-saved").className = isError ? "down" : "";
+  renderWatchSub();
 }
 
 // ---------------------------------------------------------------- prices
 
 async function refreshPrices() {
-  const syms = [...new Set(pf.doc.transactions.map((t) => t.symbol))];
+  if (!pf.doc) return;
+  const syms = [...new Set([...pf.doc.transactions.map((t) => t.symbol), ...pf.doc.watchlist.map((w) => w.symbol)])];
   if (!syms.length) return render();
-  $("pf-refresh").disabled = true;
-  $("pf-refresh").textContent = "Refreshing...";
+  const buttons = [$("pf-refresh"), $("wl-refresh")];
+  for (const b of buttons) { b.disabled = true; b.textContent = "Refreshing..."; }
   try {
     const r = await fetch(`/api/quotes?symbols=${encodeURIComponent(syms.join(","))}`);
     const body = await r.json();
@@ -345,13 +374,14 @@ async function refreshPrices() {
   } catch (e) {
     $("pf-warn").hidden = false;
     $("pf-warn").textContent = `Live prices could not be loaded (${e.message}). Showing cost only.`;
+    msg("wl-msg", `Live prices could not be loaded (${e.message}).`, "error");
   } finally {
-    $("pf-refresh").disabled = false;
-    $("pf-refresh").textContent = "Refresh prices";
+    for (const b of buttons) { b.disabled = false; b.textContent = "Refresh prices"; }
   }
   render();
 }
 $("pf-refresh").addEventListener("click", refreshPrices);
+$("wl-refresh").addEventListener("click", refreshPrices);
 
 // ---------------------------------------------------------------- render
 
@@ -395,7 +425,7 @@ function render() {
   t.innerHTML = `<thead><tr>
     <th>Stock</th><th class="num">Shares</th><th class="num">Avg cost</th><th class="num">Price</th>
     <th class="num">Today</th><th class="num">Value</th><th class="num">Value (S$)</th>
-    <th class="num">Unrealised</th><th class="num">Weight</th></tr></thead><tbody></tbody>`;
+    <th class="num">Unrealised</th><th class="num">Weight</th><th class="num">Watch</th></tr></thead><tbody></tbody>`;
   for (const r of rows) {
     const tr = document.createElement("tr");
     tr.className = "clickable";
@@ -409,9 +439,11 @@ function render() {
       <td class="num">${r.value != null ? money(r.value, r.currency) : "n/a"}</td>
       <td class="num">${sgd(r.valueBase)}</td>
       <td class="num ${cls(r.unrealised)}">${r.unrealised != null ? `${(r.unrealised > 0 ? "+" : "") + money(r.unrealised, r.currency)}<div class="small-text">${r.unrealisedPct != null ? pct(r.unrealisedPct, true) : ""}</div>` : "n/a"}</td>
-      <td class="num">${r.weight != null ? pct(r.weight) : "n/a"}</td>`;
+      <td class="num">${r.weight != null ? pct(r.weight) : "n/a"}</td>
+      <td class="num"></td>`;
     tr.querySelector("b").textContent = r.symbol;
     tr.querySelector(".muted").textContent = r.name;
+    tr.lastElementChild.appendChild(starButton({ symbol: r.symbol, name: r.name, currency: r.currency, price: r.price }));
     tr.addEventListener("click", () => window.stockApp.analyse(r.symbol));
     t.querySelector("tbody").appendChild(tr);
   }
@@ -438,6 +470,8 @@ function render() {
     tr.querySelector("button").addEventListener("click", () => deleteTx(x.id));
     h.querySelector("tbody").appendChild(tr);
   }
+
+  renderWatchlist();
 }
 
 // ---------------------------------------------------------------- trades
@@ -531,9 +565,149 @@ $("pf-import").addEventListener("change", async (e) => {
   let doc;
   try { doc = normalise(JSON.parse(await file.text())); } catch { return alert("That file isn't valid JSON."); }
   for (const t of doc.transactions) if (!t.id) t.id = crypto.randomUUID();
-  if (!confirm(`Replace your portfolio with ${doc.transactions.length} trades from ${file.name}? Export a backup first if unsure.`)) return;
+  if (!confirm(`Replace your portfolio and watchlist with ${doc.transactions.length} trades and ${doc.watchlist.length} watched stocks from ${file.name}? Export a backup first if unsure.`)) return;
   pf.doc = doc;
   render();
+  notifyWatch();
   await save();
   refreshPrices();
+});
+
+// ---------------------------------------------------------------- watchlist
+
+function notifyWatch() { window.dispatchEvent(new Event("watchlist:changed")); }
+
+// Used by the analyser's Watch button (see app.js).
+window.watchlistApi = {
+  ready: () => Boolean(pf.user && pf.doc),
+  has: (symbol) => Boolean(pf.doc && isWatched(pf.doc, symbol)),
+  toggle: (stock) => toggleWatch(stock),
+};
+
+async function toggleWatch(stock) {
+  if (!pf.doc) return;
+  if (isWatched(pf.doc, stock.symbol)) removeFromWatchlist(pf.doc, stock.symbol);
+  else addToWatchlist(pf.doc, stock);
+  render();
+  notifyWatch();
+  await save();
+  if (isWatched(pf.doc, stock.symbol) && !pf.quotes[stock.symbol]) refreshPrices();
+}
+
+// A Watch click made while signed out is finished once the watchlist is loaded.
+async function applyPendingWatch() {
+  const w = window.pendingWatch;
+  if (!w || !pf.doc) return;
+  window.pendingWatch = null;
+  if (addToWatchlist(pf.doc, w)) {
+    render();
+    notifyWatch();
+    await save();
+    refreshPrices();
+  }
+  msg("wl-msg", `${w.symbol} is on your watchlist.`, "ok");
+}
+
+function starButton(stock) {
+  const b = document.createElement("button");
+  b.type = "button";
+  const on = isWatched(pf.doc, stock.symbol);
+  b.className = "star" + (on ? " on" : "");
+  b.innerHTML = on ? "&#9733;" : "&#9734;";
+  b.title = on ? `Remove ${stock.symbol} from watchlist` : `Add ${stock.symbol} to watchlist`;
+  b.setAttribute("aria-pressed", String(on));
+  b.addEventListener("click", (e) => { e.stopPropagation(); toggleWatch(stock); });
+  return b;
+}
+
+function renderWatchSub() {
+  if (!pf.doc) return;
+  const n = pf.doc.watchlist.length;
+  $("wl-sub").textContent = `${n} stock${n === 1 ? "" : "s"} · ${pf.savedText || ""}`;
+  $("wl-sub").className = "sub" + (pf.savedError ? " down" : "");
+}
+
+function renderWatchlist() {
+  if (!pf.doc) return;
+  renderWatchSub();
+  const rows = valueWatchlist(pf.doc.watchlist, pf.quotes);
+  const t = $("wl-table");
+  $("wl-empty").hidden = rows.length > 0;
+  t.hidden = rows.length === 0;
+  t.innerHTML = `<thead><tr>
+    <th>Stock</th><th class="num">Price</th><th class="num">Today</th><th class="num">Since added</th>
+    <th>52-week range</th><th class="num">P/E</th><th class="num">Div yield</th>
+    <th>Target price</th><th>Note</th><th></th></tr></thead><tbody></tbody>`;
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    if (r.targetHit) tr.className = "target-hit";
+    const ccy = r.currency;
+    tr.innerHTML = `
+      <td><button type="button" class="link stock-link"><b></b></button><div class="muted small-text name"></div></td>
+      <td class="num">${r.price != null ? money(r.price, ccy) : "n/a"}</td>
+      <td class="num ${cls(r.dayChangePct)}">${r.dayChangePct != null ? pct(r.dayChangePct, true) : "n/a"}</td>
+      <td class="num"><span class="${cls(r.sinceAddedPct)}">${r.sinceAddedPct != null ? pct(r.sinceAddedPct, true) : "n/a"}</span>
+        <div class="muted small-text">${r.addedOn ? niceDate(r.addedOn) : ""}${r.addedPrice != null ? ` at ${money(r.addedPrice, ccy)}` : ""}</div></td>
+      <td>${rangeCell(r)}</td>
+      <td class="num">${r.pe != null ? num(r.pe, false, 1) : "n/a"}</td>
+      <td class="num">${r.divYield != null ? pct(r.divYield) : "n/a"}</td>
+      <td><input type="number" class="cell-input target-input" min="0" step="any" placeholder="Set"><div class="small-text target-info"></div></td>
+      <td><input type="text" class="cell-input note-input" maxlength="200" placeholder="Add a note"></td>
+      <td class="num"><button type="button" class="star on" title="Remove from watchlist" aria-label="Remove ${r.symbol} from watchlist">&#9733;</button></td>`;
+    tr.querySelector("b").textContent = r.symbol;
+    tr.querySelector(".name").textContent = r.name;
+    tr.querySelector(".stock-link").addEventListener("click", () => window.stockApp.analyse(r.symbol));
+
+    const target = tr.querySelector(".target-input");
+    target.value = r.target ?? "";
+    const info = tr.querySelector(".target-info");
+    if (r.target != null) {
+      if (r.targetHit) info.innerHTML = `<span class="pill hit">Target reached</span>`;
+      else if (r.toTargetPct != null) {
+        info.className += " muted";
+        info.textContent = `${r.targetDir === "up" ? "Rises" : "Falls"} to target: ${pct(Math.abs(r.toTargetPct))} away`;
+      }
+    }
+    target.addEventListener("change", () => updateWatch(r.symbol, { target: Number(target.value) > 0 ? Number(target.value) : null }));
+
+    const note = tr.querySelector(".note-input");
+    note.value = r.note || "";
+    note.addEventListener("change", () => updateWatch(r.symbol, { note: note.value.trim().slice(0, 200) }, false));
+
+    tr.querySelector(".star").addEventListener("click", () => toggleWatch({ symbol: r.symbol }));
+    t.querySelector("tbody").appendChild(tr);
+  }
+}
+
+function rangeCell(r) {
+  if (r.low52 == null || r.high52 == null) return `<span class="muted">n/a</span>`;
+  const pos = r.rangePos != null ? Math.round(r.rangePos * 100) : null;
+  return `<div class="range" title="${pos != null ? `${pos}% of the way from the 52-week low to the high` : ""}">
+      <div class="range-bar">${pos != null ? `<span class="range-dot" style="left:${pos}%"></span>` : ""}</div>
+      <div class="range-labels small-text muted"><span>${money(r.low52, r.currency)}</span><span>${money(r.high52, r.currency)}</span></div>
+    </div>`;
+}
+
+async function updateWatch(symbol, fields, redraw = true) {
+  const w = pf.doc.watchlist.find((x) => x.symbol === symbol);
+  if (!w) return;
+  Object.assign(w, fields);
+  if (redraw) renderWatchlist(); // a note change doesn't affect anything shown, so leave the table (and focus) alone
+  await save();
+}
+
+$("wl-add-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const symbol = $("wl-add-symbol").value.trim().toUpperCase();
+  if (!symbol) return;
+  if (isWatched(pf.doc, symbol)) return msg("wl-msg", `${symbol} is already on your watchlist.`);
+  msg("wl-msg", `Checking ${symbol}...`);
+  const q = await lookup(symbol);
+  if (!q) return msg("wl-msg", `Couldn't find ${symbol}. Use the exchange code, e.g. D05.SI for DBS or AAPL for Apple.`, "error");
+  addToWatchlist(pf.doc, { symbol, name: q.name, currency: q.currency, price: q.price });
+  $("wl-add-symbol").value = "";
+  msg("wl-msg", `Added ${symbol}.`, "ok");
+  render();
+  notifyWatch();
+  await save();
 });

@@ -217,3 +217,39 @@ table.grid tr.clickable:hover td { background: var(--bg); }
 }
 .menu-list button:hover, .menu-list button:focus-visible { background: var(--bg); }
 #pf-signout { color: var(--dip); }
+
+/* account menu in the top bar */
+.topbar-account { margin-left: auto; }
+.menu-email { font-size: 12px; color: var(--muted); padding: 8px 12px 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px; overflow-wrap: anywhere; }
+
+/* watch buttons */
+.add-btns { justify-content: flex-end; margin-top: 8px; flex-wrap: wrap; }
+#watch-toggle.on { color: #b7791f; border-color: #e2c27a; }
+.star { background: none; border: 0; cursor: pointer; font-size: 18px; line-height: 1; padding: 2px 4px; color: var(--muted); }
+.star.on { color: #d69e2e; }
+.star:hover { transform: scale(1.15); }
+
+/* watchlist */
+.wl-add { margin-bottom: 8px; max-width: 520px; }
+.wl-add input { flex: 1; min-width: 0; font: inherit; color: var(--text); padding: 9px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+.stock-link { color: var(--text); text-align: left; padding: 0; }
+.stock-link:hover b { color: var(--accent); text-decoration: underline; }
+.cell-input { font: inherit; font-size: 14px; color: var(--text); width: 110px; padding: 6px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+.note-input { width: 180px; }
+.target-info { margin-top: 4px; white-space: nowrap; }
+.pill.hit { background: #fdf3d7; color: #8a5a00; }
+table.grid tr.target-hit td { background: rgba(214, 158, 46, 0.10); }
+.range { width: 150px; }
+.range-bar { position: relative; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--dip), #d69e2e, var(--rise)); opacity: .85; margin: 6px 0 4px; }
+.range-dot { position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%; background: var(--panel); border: 2px solid var(--text); transform: translate(-50%, -50%); }
+.range-labels { display: flex; justify-content: space-between; gap: 6px; }
+@media (prefers-color-scheme: dark) {
+  .pill.hit { background: #4a3b12; color: #f6d77a; }
+}
+#wl-table td:first-child, #pf-holdings td:first-child { min-width: 150px; }
+#wl-table td .muted.small-text { white-space: nowrap; }
+@media (max-width: 520px) {
+  .tab { padding: 6px 10px; }
+  #pf-account { padding: 7px 10px; }
+  .add-btns { justify-content: flex-start; }
+}
