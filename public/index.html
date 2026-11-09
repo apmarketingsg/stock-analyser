@@ -123,6 +123,22 @@
       <button type="button" id="forgot-back" class="link">Back to sign in</button>
     </section>
 
+    <section id="pf-password" class="pf-panel narrow" hidden>
+      <h1>Change password</h1>
+      <p class="sub">After the change, any other device signed in to this account is signed out.</p>
+      <form id="password-form" class="stack">
+        <input type="email" id="password-username" autocomplete="username" hidden>
+        <label>Current password <input id="password-current" type="password" autocomplete="current-password" required></label>
+        <label>New password <input id="password-new" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label>Repeat new password <input id="password-new2" type="password" autocomplete="new-password" minlength="8" required></label>
+        <div class="row">
+          <button type="submit" class="primary">Change password</button>
+          <button type="button" id="password-cancel" class="secondary">Cancel</button>
+        </div>
+        <p id="password-msg" class="msg" hidden></p>
+      </form>
+    </section>
+
     <section id="pf-question" class="pf-panel narrow" hidden>
       <h1 id="question-title">Set your secret question</h1>
       <p class="sub">If you forget your password, you'll answer this to set a new one. Pick an answer only you would know and that isn't on your social media.</p>
@@ -151,8 +167,14 @@
           <button type="button" id="pf-refresh" class="secondary">Refresh prices</button>
           <button type="button" id="pf-export" class="secondary">Export JSON</button>
           <label class="secondary file-btn">Import JSON <input type="file" id="pf-import" accept="application/json,.json" hidden></label>
-          <button type="button" id="pf-change-question" class="secondary">Secret question</button>
-          <button type="button" id="pf-signout" class="secondary">Sign out</button>
+          <div class="menu">
+            <button type="button" id="pf-account" class="secondary" aria-haspopup="true" aria-expanded="false">Account &#9662;</button>
+            <div id="pf-account-menu" class="menu-list" hidden>
+              <button type="button" id="pf-change-password">Change password</button>
+              <button type="button" id="pf-change-question">Secret question</button>
+              <button type="button" id="pf-signout">Sign out</button>
+            </div>
+          </div>
         </div>
       </div>
 

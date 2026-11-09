@@ -60,6 +60,13 @@ Use **Export JSON** on the Portfolio tab to download a backup, and **Import JSON
 - **Limits:** five wrong answers lock resets for that account for 15 minutes. An email with no account still gets a question, so the form doesn't reveal who has an account.
 - **The trade-off:** a secret question is weaker than an emailed reset link. Anyone who knows or can guess the answer can take over the account. That was judged acceptable for this project.
 
+### Account menu
+
+The **Account** menu on the Portfolio tab has:
+- **Change password:** asks for the current password, then the new one twice. After the change, every other device signed in to the account is signed out.
+- **Secret question:** change the question or answer used for password resets.
+- **Sign out.**
+
 ### How the numbers are worked out
 
 - **Average cost:** a sale removes shares at the current average cost, and the difference between that and the sale price (after fees) is the realised gain.

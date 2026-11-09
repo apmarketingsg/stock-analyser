@@ -18,7 +18,7 @@ const pf = {
 
 // ---------------------------------------------------------------- views
 
-const VIEWS = ["pf-unconfigured", "pf-loading", "pf-auth", "pf-forgot", "pf-question", "pf-main"];
+const VIEWS = ["pf-unconfigured", "pf-loading", "pf-auth", "pf-forgot", "pf-question", "pf-password", "pf-main"];
 function view(id) { for (const v of VIEWS) $(v).hidden = v !== id; }
 
 function msg(el, text, kind = "") {
@@ -239,6 +239,58 @@ $("forgot-answer-form").addEventListener("submit", async (e) => {
   $("auth-password").value = "";
   view("pf-auth");
   msg("auth-msg", "Password changed. Sign in with your new password.", "ok");
+});
+
+// ---------------------------------------------------------------- account menu
+
+function closeAccountMenu() {
+  $("pf-account-menu").hidden = true;
+  $("pf-account").setAttribute("aria-expanded", "false");
+}
+$("pf-account").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const open = $("pf-account-menu").hidden;
+  $("pf-account-menu").hidden = !open;
+  $("pf-account").setAttribute("aria-expanded", String(open));
+});
+$("pf-account-menu").addEventListener("click", closeAccountMenu);
+document.addEventListener("click", (e) => { if (!e.target.closest(".menu")) closeAccountMenu(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAccountMenu(); });
+
+// ---------------------------------------------------------------- change password
+
+$("pf-change-password").addEventListener("click", () => {
+  $("password-form").reset();
+  $("password-username").value = pf.user?.email || "";
+  msg("password-msg", "");
+  view("pf-password");
+  $("password-current").focus();
+});
+$("password-cancel").addEventListener("click", () => view("pf-main"));
+
+$("password-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const current = $("password-current").value;
+  const next = $("password-new").value;
+  if (next !== $("password-new2").value) return msg("password-msg", "The two new passwords don't match.", "error");
+  if (next.length < 8) return msg("password-msg", "The new password must be at least 8 characters.", "error");
+  if (next === current) return msg("password-msg", "The new password must be different from the current one.", "error");
+
+  // Confirm the current password by signing in with it again.
+  msg("password-msg", "Checking your current password...");
+  const check = await pf.client.auth.signInWithPassword({ email: pf.user.email, password: current });
+  if (check.error) return msg("password-msg", "Your current password isn't right.", "error");
+
+  msg("password-msg", "Saving...");
+  const { error } = await pf.client.auth.updateUser({ password: next });
+  if (error) return msg("password-msg", error.message, "error");
+
+  // Anyone signed in elsewhere (perhaps with the old password) is signed out.
+  const others = await pf.client.auth.signOut({ scope: "others" });
+  view("pf-main");
+  setSaved(others.error
+    ? "Password changed. Other devices could not be signed out automatically."
+    : "Password changed. Other devices have been signed out.");
 });
 
 $("pf-signout").addEventListener("click", async () => {
