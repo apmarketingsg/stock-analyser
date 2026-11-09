@@ -205,3 +205,15 @@ table.grid tr.clickable:hover td { background: var(--bg); }
 }
 #pf-tx td { white-space: nowrap; }
 .question { font-weight: 600; font-size: 16px; margin: 0; }
+.menu { position: relative; }
+.menu-list {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 15; min-width: 190px; padding: 4px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.14);
+  display: flex; flex-direction: column;
+}
+.menu-list button {
+  font: inherit; font-size: 14px; text-align: left; padding: 9px 12px; border: 0; border-radius: 6px;
+  background: none; color: var(--text); cursor: pointer;
+}
+.menu-list button:hover, .menu-list button:focus-visible { background: var(--bg); }
+#pf-signout { color: var(--dip); }
