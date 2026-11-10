@@ -73,3 +73,43 @@ test("normalise drops malformed transactions", () => {
   assert.equal(d.transactions.length, 1);
   assert.deepEqual(normalise(null).transactions, []);
 });
+
+import { addToWatchlist, removeFromWatchlist, isWatched, valueWatchlist, newPortfolio, normaliseWatchlist } from "../public/portfolio-calc.js";
+
+test("watchlist add, duplicate, remove", () => {
+  const doc = newPortfolio();
+  assert.equal(addToWatchlist(doc, { symbol: "d05.si", name: "DBS", currency: "SGD", price: 40 }, "2026-01-02"), true);
+  assert.equal(addToWatchlist(doc, { symbol: "D05.SI", price: 41 }), false);
+  addToWatchlist(doc, { symbol: "AAPL", currency: "USD", price: 200 }, "2026-01-03");
+  assert.deepEqual(doc.watchlist.map((w) => w.symbol), ["AAPL", "D05.SI"]); // newest first
+  assert.equal(doc.watchlist[1].addedPrice, 40);
+  assert.ok(isWatched(doc, "d05.si"));
+  assert.equal(removeFromWatchlist(doc, "D05.SI"), true);
+  assert.ok(!isWatched(doc, "D05.SI"));
+});
+
+test("watchlist valuation: since added, 52-week position, targets both ways", () => {
+  const list = normaliseWatchlist([
+    { symbol: "UP", addedPrice: 100, target: 120, addedOn: "2026-01-01" },
+    { symbol: "DOWN", addedPrice: 100, target: 90, addedOn: "2026-01-01" },
+    { symbol: "NOQ", addedPrice: 10 },
+  ]);
+  const rows = valueWatchlist(list, {
+    UP: { price: 125, prevClose: 120, low52: 80, high52: 130 },
+    DOWN: { price: 95, prevClose: 96, low52: 90, high52: 110 },
+  });
+  const [up, down, noq] = rows;
+  close(up.sinceAddedPct, 0.25);
+  close(up.rangePos, 45 / 50);
+  assert.equal(up.targetDir, "up"); assert.equal(up.targetHit, true);
+  assert.equal(down.targetDir, "down"); assert.equal(down.targetHit, false);
+  close(down.toTargetPct, 90 / 95 - 1);
+  assert.equal(noq.price, null); assert.equal(noq.targetHit, false); assert.equal(noq.rangePos, null);
+});
+
+test("watchlist normalise drops junk and duplicates, keeps old documents working", () => {
+  const w = normaliseWatchlist([{ symbol: "a" }, { symbol: "A" }, { foo: 1 }, null, { symbol: "B", target: -5, note: 7 }]);
+  assert.deepEqual(w.map((x) => x.symbol), ["A", "B"]);
+  assert.equal(w[1].target, null); assert.equal(w[1].note, "");
+  assert.deepEqual(normalise({ transactions: [] }).watchlist, []); // documents saved before watchlists existed
+});

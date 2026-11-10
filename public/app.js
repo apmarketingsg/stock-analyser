@@ -194,6 +194,7 @@ async function load(symbol, quiet404 = false) {
 
 function render(d) {
   $("result").hidden = false;
+  updateWatchButton();
   document.title = `${d.symbol} | Stock Analyser`;
   $("name").textContent = d.name;
   $("sub").textContent = [d.symbol, d.exchange, d.currency].filter(Boolean).join(" · ");
@@ -449,14 +450,20 @@ window.addEventListener("resize", () => hideEventCard(true));
 
 // ---------------------------------------------------------------- tabs
 
+const ACCOUNT_TABS = { portfolio: "Portfolio", watchlist: "Watchlist" };
+
 function showTab(name) {
   for (const b of document.querySelectorAll(".tab")) b.classList.toggle("active", b.dataset.tab === name);
   $("view-analyse").hidden = name !== "analyse";
   $("view-portfolio").hidden = name !== "portfolio";
-  if (name === "portfolio") {
-    history.replaceState(null, "", "?tab=portfolio");
-    document.title = "Portfolio | Stock Analyser";
-    window.dispatchEvent(new Event("portfolio:show"));
+  $("view-watchlist").hidden = name !== "watchlist";
+  // Sign-in screens are shared by the Portfolio and Watchlist tabs.
+  $("view-account").hidden = !ACCOUNT_TABS[name];
+  window.currentTab = name;
+  if (ACCOUNT_TABS[name]) {
+    history.replaceState(null, "", `?tab=${name}`);
+    document.title = `${ACCOUNT_TABS[name]} | Stock Analyser`;
+    window.dispatchEvent(new CustomEvent("account:show", { detail: name }));
   } else if (state.data) {
     history.replaceState(null, "", `?s=${encodeURIComponent(state.data.symbol)}`);
     document.title = `${state.data.symbol} | Stock Analyser`;
@@ -476,11 +483,35 @@ $("add-to-pf").addEventListener("click", () => {
   window.dispatchEvent(new Event("portfolio:prefill"));
 });
 
-// Used by the portfolio tab to open a holding in the analyser.
+// "Watch": the portfolio module owns the saved list; it tells us when it changes.
+function currentStock() {
+  const d = state.data;
+  if (!d) return null;
+  return { symbol: d.symbol, name: d.name, currency: d.currency,
+    price: d.metrics.find((m) => m.label === "Price")?.value ?? null };
+}
+function updateWatchButton() {
+  const d = state.data;
+  const on = Boolean(d && window.watchlistApi?.has(d.symbol));
+  $("watch-toggle").innerHTML = on ? "&#9733; Watching" : "&#9734; Watch";
+  $("watch-toggle").setAttribute("aria-pressed", String(on));
+  $("watch-toggle").classList.toggle("on", on);
+}
+$("watch-toggle").addEventListener("click", () => {
+  const stock = currentStock();
+  if (!stock) return;
+  if (window.watchlistApi?.ready()) return window.watchlistApi.toggle(stock);
+  // Not signed in (or not loaded yet): go to the Watchlist tab, which adds it after sign-in.
+  window.pendingWatch = stock;
+  showTab("watchlist");
+});
+window.addEventListener("watchlist:changed", updateWatchButton);
+
+// Used by the portfolio and watchlist tabs to open a stock in the analyser.
 window.stockApp = { analyse: (sym) => { $("q").value = sym; load(sym); } };
 
 // Load from ?s=SYMBOL or ?tab=portfolio so a page can be bookmarked or shared
 const params = new URLSearchParams(location.search);
 const initial = params.get("s");
-if (params.get("tab") === "portfolio") showTab("portfolio");
+if (ACCOUNT_TABS[params.get("tab")]) showTab(params.get("tab"));
 else if (initial) { $("q").value = initial; load(initial); }

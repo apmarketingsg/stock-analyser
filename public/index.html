@@ -16,12 +16,22 @@
     <nav class="tabs" aria-label="Sections">
       <button type="button" class="tab active" data-tab="analyse">Analyse</button>
       <button type="button" class="tab" data-tab="portfolio">Portfolio</button>
+      <button type="button" class="tab" data-tab="watchlist">Watchlist</button>
     </nav>
     <form id="search-form" class="search" autocomplete="off">
       <input id="q" type="text" placeholder="Stock code or name, e.g. D05.SI, DBS, AAPL, Apple" aria-label="Stock code or name">
       <button type="submit">Analyse</button>
       <ul id="suggest" class="suggest" hidden></ul>
     </form>
+    <div class="menu topbar-account" id="account-wrap" hidden>
+      <button type="button" id="pf-account" class="secondary" aria-haspopup="true" aria-expanded="false">Account &#9662;</button>
+      <div id="pf-account-menu" class="menu-list" hidden>
+        <div class="menu-email" id="account-email"></div>
+        <button type="button" id="pf-change-password">Change password</button>
+        <button type="button" id="pf-change-question">Secret question</button>
+        <button type="button" id="pf-signout">Sign out</button>
+      </div>
+    </div>
   </header>
 
   <main>
@@ -41,7 +51,10 @@
         <div class="price-block">
           <div id="price" class="price"></div>
           <div id="change" class="change"></div>
-          <button type="button" id="add-to-pf" class="secondary add-btn">+ Add to portfolio</button>
+          <div class="row add-btns">
+            <button type="button" id="watch-toggle" class="secondary" aria-pressed="false">&#9734; Watch</button>
+            <button type="button" id="add-to-pf" class="secondary">+ Add to portfolio</button>
+          </div>
         </div>
       </div>
 
@@ -82,17 +95,17 @@
     </section>
    </div>
 
-   <div id="view-portfolio" hidden>
+   <div id="view-account" hidden>
     <section id="pf-unconfigured" class="pf-panel narrow" hidden>
-      <h1>Portfolio</h1>
-      <p>The portfolio needs a Supabase database, and it isn't connected yet. Add <b>SUPABASE_URL</b> and <b>SUPABASE_PUBLISHABLE_KEY</b> in Vercel under Project Settings, Environment Variables, then redeploy.</p>
+      <h1>Portfolio and watchlist</h1>
+      <p>The portfolio and watchlist need a Supabase database, and it isn't connected yet. Add <b>SUPABASE_URL</b> and <b>SUPABASE_PUBLISHABLE_KEY</b> in Vercel under Project Settings, Environment Variables, then redeploy.</p>
     </section>
 
     <section id="pf-loading" class="status">Loading...</section>
 
     <section id="pf-auth" class="pf-panel narrow" hidden>
-      <h1>Sign in to your portfolio</h1>
-      <p class="sub">Your holdings are saved to your account, so you see the same portfolio on any device.</p>
+      <h1>Sign in</h1>
+      <p class="sub">Your portfolio and watchlist are saved to your account, so you see the same ones on any device.</p>
       <form id="auth-form" class="stack">
         <label>Email <input id="auth-email" type="email" autocomplete="email" required></label>
         <label>Password <input id="auth-password" type="password" autocomplete="current-password" minlength="8" required></label>
@@ -156,7 +169,9 @@
         <p id="question-msg" class="msg" hidden></p>
       </form>
     </section>
+   </div>
 
+   <div id="view-portfolio" hidden>
     <section id="pf-main" hidden>
       <div class="title-row">
         <div>
@@ -167,14 +182,6 @@
           <button type="button" id="pf-refresh" class="secondary">Refresh prices</button>
           <button type="button" id="pf-export" class="secondary">Export JSON</button>
           <label class="secondary file-btn">Import JSON <input type="file" id="pf-import" accept="application/json,.json" hidden></label>
-          <div class="menu">
-            <button type="button" id="pf-account" class="secondary" aria-haspopup="true" aria-expanded="false">Account &#9662;</button>
-            <div id="pf-account-menu" class="menu-list" hidden>
-              <button type="button" id="pf-change-password">Change password</button>
-              <button type="button" id="pf-change-question">Secret question</button>
-              <button type="button" id="pf-signout">Sign out</button>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -207,6 +214,30 @@
       <div class="pf-panel">
         <h2>Trade history</h2>
         <div class="table-wrap"><table id="pf-tx" class="grid"></table></div>
+      </div>
+    </section>
+   </div>
+
+   <div id="view-watchlist" hidden>
+    <section id="wl-main" hidden>
+      <div class="title-row">
+        <div>
+          <h1>Watchlist</h1>
+          <div class="sub" id="wl-sub"></div>
+        </div>
+        <div class="row wrap">
+          <button type="button" id="wl-refresh" class="secondary">Refresh prices</button>
+        </div>
+      </div>
+      <div class="pf-panel">
+        <form id="wl-add-form" class="row wl-add" autocomplete="off">
+          <input id="wl-add-symbol" type="text" placeholder="Stock code, e.g. Z74.SI" aria-label="Stock code to watch" required>
+          <button type="submit" class="primary">Add to watchlist</button>
+        </form>
+        <p id="wl-msg" class="msg" hidden></p>
+        <div class="table-wrap"><table id="wl-table" class="grid"></table></div>
+        <p id="wl-empty" class="note" hidden>Your watchlist is empty. Click &#9734; Watch on any stock you analyse, or add a code above.</p>
+        <p class="note">Set a target price and the row is highlighted when it's reached. A target above the price when you added the stock means "rises to"; below means "falls to". Click a stock's name to analyse it.</p>
       </div>
     </section>
    </div>

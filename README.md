@@ -6,6 +6,7 @@ Type a stock code or company name. The app shows:
 2. **30 metric cards** in three rows of up to 10: basics, then valuation and profitability, then balance sheet and outlook. Hover over a card to see what the metric means.
 3. **An 18-month price chart** with dots on significant rises (green) and dips (red). Hover over a dot to see the news headlines from around that date.
 4. **A Portfolio tab** (sign-in required): record buys and sells, and see value, today's change, unrealised and realised gains in S$, and each holding's weight. The **Add to portfolio** button on any analysed stock opens the trade form with that stock and today's price filled in.
+5. **A Watchlist tab** (sign-in required): stocks you're watching with price, today's change, change since you added them, 52-week range, P/E, dividend yield, an optional target price (highlighted when reached) and a note. Add stocks with **☆ Watch** on the analysis page, the star on a portfolio holding, or by typing a code.
 
 Data comes from free sources: Yahoo Finance (through the `yahoo-finance2` library) and Google News RSS. You don't need any API keys.
 
@@ -46,11 +47,15 @@ Supabase's built-in email sender only allows a few emails per hour, which is fin
   "transactions": [
     { "id": "…", "symbol": "D05.SI", "name": "DBS Group Holdings Ltd", "currency": "SGD",
       "type": "buy", "date": "2025-01-02", "quantity": 100, "price": 40, "fees": 10 }
+  ],
+  "watchlist": [
+    { "symbol": "Z74.SI", "name": "Singapore Telecommunications Ltd", "currency": "SGD",
+      "addedOn": "2026-11-09", "addedPrice": 3.2, "target": 3.5, "note": "Wait for results" }
   ]
 }
 ```
 
-Use **Export JSON** on the Portfolio tab to download a backup, and **Import JSON** to restore one.
+Use **Export JSON** on the Portfolio tab to download a backup of both the portfolio and the watchlist, and **Import JSON** to restore one.
 
 ### How the secret question works
 
@@ -62,7 +67,7 @@ Use **Export JSON** on the Portfolio tab to download a backup, and **Import JSON
 
 ### Account menu
 
-The **Account** menu on the Portfolio tab has:
+The **Account** menu (top right, once signed in) has:
 - **Change password:** asks for the current password, then the new one twice. After the change, every other device signed in to the account is signed out.
 - **Secret question:** change the question or answer used for password resets.
 - **Sign out.**
@@ -90,7 +95,7 @@ Then open http://localhost:3000. For the Portfolio tab to work locally, set `SUP
 
 - `public/`: the web page (HTML, CSS, JavaScript, bundled Chart.js)
 - `api/`: endpoints for `search`, `stock`, `news`, `quotes` (portfolio prices and exchange rates) and `config` (Supabase settings for the browser)
-- `public/portfolio.js`, `public/portfolio-calc.js`: the Portfolio tab and its maths
+- `public/portfolio.js`, `public/portfolio-calc.js`: sign-in, the Portfolio and Watchlist tabs, and their maths
 - `supabase/schema.sql`: the database tables and their security rules
 - `api/security.js`, `lib/security.js`: secret-question set-up and password reset
 - `lib/data.js`: fetches from Yahoo Finance and Google News

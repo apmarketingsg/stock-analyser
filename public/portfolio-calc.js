@@ -9,7 +9,7 @@ export const SCHEMA_VERSION = 1;
 const EPS = 1e-9;
 
 export function newPortfolio() {
-  return { version: SCHEMA_VERSION, baseCurrency: BASE, transactions: [] };
+  return { version: SCHEMA_VERSION, baseCurrency: BASE, transactions: [], watchlist: [] };
 }
 
 /** Make sure a document loaded from the database has the shape we expect. */
@@ -19,6 +19,7 @@ export function normalise(doc) {
     version: SCHEMA_VERSION,
     baseCurrency: BASE,
     transactions: Array.isArray(d.transactions) ? d.transactions.filter(isValidTx) : [],
+    watchlist: normaliseWatchlist(d.watchlist),
   };
 }
 
@@ -154,4 +155,89 @@ export function valuePortfolio(computed, quotes, fx) {
       missingFx: [...new Set(rows.filter((x) => x.fx == null).map((x) => x.currency))],
     },
   };
+}
+
+// ---------------------------------------------------------------- watchlist
+//
+// Each item: { symbol, name, currency, addedOn: "YYYY-MM-DD", addedPrice,
+//              target: number|null, note: string }
+
+const finite = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+export function normaliseWatchlist(list) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const w of list) {
+    if (!w || typeof w.symbol !== "string" || !w.symbol.trim()) continue;
+    const symbol = w.symbol.trim().toUpperCase();
+    if (seen.has(symbol)) continue;
+    seen.add(symbol);
+    out.push({
+      symbol,
+      name: typeof w.name === "string" ? w.name : symbol,
+      currency: typeof w.currency === "string" ? w.currency : "",
+      addedOn: /^\d{4}-\d{2}-\d{2}$/.test(w.addedOn) ? w.addedOn : null,
+      addedPrice: finite(w.addedPrice),
+      target: finite(w.target) != null && w.target > 0 ? w.target : null,
+      note: typeof w.note === "string" ? w.note.slice(0, 200) : "",
+    });
+  }
+  return out;
+}
+
+export function isWatched(doc, symbol) {
+  return Boolean(doc?.watchlist?.some((w) => w.symbol === String(symbol).toUpperCase()));
+}
+
+/** Adds to the top of the list. Returns false if it was already there. */
+export function addToWatchlist(doc, { symbol, name, currency, price }, today = new Date().toISOString().slice(0, 10)) {
+  const sym = String(symbol).trim().toUpperCase();
+  if (!sym || isWatched(doc, sym)) return false;
+  doc.watchlist = [{ symbol: sym, name: name || sym, currency: currency || "", addedOn: today,
+    addedPrice: finite(price), target: null, note: "" }, ...(doc.watchlist || [])];
+  return true;
+}
+
+export function removeFromWatchlist(doc, symbol) {
+  const sym = String(symbol).toUpperCase();
+  const before = (doc.watchlist || []).length;
+  doc.watchlist = (doc.watchlist || []).filter((w) => w.symbol !== sym);
+  return doc.watchlist.length < before;
+}
+
+/**
+ * Combine watchlist items with live quotes:
+ * quotes[symbol] = { price, prevClose, currency, low52, high52, pe, divYield }.
+ * A target above the price when added means "tell me when it rises to this";
+ * below means "tell me when it falls to this".
+ */
+export function valueWatchlist(list, quotes) {
+  return (list || []).map((w) => {
+    const q = quotes?.[w.symbol] || {};
+    const price = q.price ?? null;
+    const lo = q.low52 ?? null, hi = q.high52 ?? null;
+    let targetDir = null, targetHit = false;
+    if (w.target != null) {
+      const ref = w.addedPrice ?? price;
+      targetDir = ref == null || w.target >= ref ? "up" : "down";
+      if (price != null) targetHit = targetDir === "up" ? price >= w.target : price <= w.target;
+    }
+    return {
+      ...w,
+      currency: q.currency || w.currency,
+      name: q.name || w.name,
+      price,
+      dayChangePct: price != null && q.prevClose ? price / q.prevClose - 1 : null,
+      sinceAddedPct: price != null && w.addedPrice ? price / w.addedPrice - 1 : null,
+      low52: lo,
+      high52: hi,
+      rangePos: price != null && lo != null && hi != null && hi > lo ? Math.min(1, Math.max(0, (price - lo) / (hi - lo))) : null,
+      pe: q.pe ?? null,
+      divYield: q.divYield ?? null,
+      targetDir,
+      targetHit,
+      toTargetPct: price != null && w.target != null ? w.target / price - 1 : null,
+    };
+  });
 }
